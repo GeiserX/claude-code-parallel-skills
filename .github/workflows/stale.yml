@@ -1,0 +1,24 @@
+name: Stale Issues
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  stale:
+    runs-on: [self-hosted, Linux, X64]
+    steps:
+      - uses: actions/stale@v9
+        with:
+          stale-issue-message: "This issue has been automatically marked as stale because it has not had recent activity. It will be closed in 14 days if no further activity occurs."
+          close-issue-message: "This issue was closed because it has been stale for 28 days with no activity."
+          days-before-stale: 14
+          days-before-close: 14
+          days-before-pr-stale: -1
+          days-before-pr-close: -1
+          exempt-issue-labels: "pinned"
+          stale-issue-label: "stale"
