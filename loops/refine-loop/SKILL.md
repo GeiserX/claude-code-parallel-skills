@@ -66,8 +66,9 @@ State consists of:
 - `<state_dir>/REFINE-BACKLOG.md`
 - `<state_dir>/REFINE-WORKLOG.md`
 
-Before any state read or write, canonicalize the state directory and require every existing state file to
-be a regular, non-symlink file beneath it. Create files with exclusive, no-follow semantics and restrictive
+Before any state read or write, canonicalize the state directory and acquire an exclusive OS lock or lease
+for it. Reject a concurrent live owner. While holding the lock, require every existing state file to be a
+regular, non-symlink file beneath it. Create files with exclusive, no-follow semantics and restrictive
 permissions. A new run exists only when all three files are absent; if only a subset exists, preserve it
 and return `ERROR`.
 
@@ -183,7 +184,11 @@ serially in the same round.
 Append evidence and outcome to the worklog, then update the backlog:
 
 - Increment `round` once per completed discovery round, up to `max_rounds=25`.
-- If one refinement was accepted, set `plateau_count=0`; otherwise increment it.
+- If one refinement was accepted, set `plateau_count=0`.
+- If no executable qualified candidate at or above `theta` remains and no operational error occurred,
+  increment `plateau_count`.
+- If a qualified candidate was rejected, rolled back, or blocked but remains actionable, do not increment
+  `plateau_count`; retain it for retry/cooldown or record the applicable failure state.
 - If discovery, execution, rollback, or verification had an operational error, increment
   `fail_count`; otherwise set it to `0`.
 - Findings marked `NEEDS-FIX` do not count as accepted refinements.

@@ -5,6 +5,7 @@
 - State directory: `{{STATE_DIR}}`
 - Continuation: `{{CONTINUATION_MODE}}`
 - Limits: iterations `{{MAX_ITERATIONS}}`; no progress `{{NO_PROGRESS_LIMIT}}`; failures `{{FAILURE_LIMIT}}`
+- Segment-start counters: iteration `0`; no progress `0`; failures `0`
 - Started: `{{TIMESTAMP}}`
 
 This file is append-only. Each claim must include evidence that was actually observed.
@@ -39,4 +40,8 @@ This file is append-only. Each claim must include evidence that was actually obs
 - Stop decision: continue | SUCCESS | BLOCKED | BUDGET | ERROR | CANCELLED
 
 For a terminal entry, also record the exact reason, OMC cancellation evidence, and manual resume invocation.
+
+For each explicit continuation, append a segment-start entry with the new segment number, timestamp,
+current limits, and counters reset to iteration `0`, no progress `0`, and failures `0`. Never remove or
+renumber counters from earlier segments.
 -->

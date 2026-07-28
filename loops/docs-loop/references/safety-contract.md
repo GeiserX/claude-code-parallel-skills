@@ -39,13 +39,15 @@ find "$root" \( -type d -o -type f \) -name .git -print0 >"$markers_file" || exi
 while IFS= read -r -d '' git_marker; do
   repo=${git_marker%/.git}
   canonical_repo=$(git -C "$repo" rev-parse --path-format=absolute --show-toplevel) || exit 2
-  printf '%s\0' "$canonical_repo" >>"$repos_file" || exit 2
+  common_dir=$(git -C "$repo" rev-parse --path-format=absolute --git-common-dir) || exit 2
+  printf '%s\0%s\0' "$common_dir" "$canonical_repo" >>"$repos_file" || exit 2
 done <"$markers_file"
 ```
 
 A duplicate canonical repository or non-repository path is `SKIPPED` with its reason retained in the
-ledger. Consume `repos_file` as NUL-delimited input for deduplication and freezing; never parse it by line.
-A user-supplied path that cannot be inspected because of permissions is `BLOCKED`.
+ledger. Consume `repos_file` as NUL-delimited `(git-common-dir, worktree-path)` pairs. Deduplicate by the
+absolute common directory before choosing one representative worktree path and freezing the list; never
+parse it by line. A user-supplied path that cannot be inspected because of permissions is `BLOCKED`.
 
 ## Gate 3 — governing instructions
 
@@ -120,7 +122,10 @@ esac
 remote_head=$(git ls-remote --symref -- "$remote_url" HEAD) || exit 4
 head_ref=$(printf '%s\n' "$remote_head" |
   awk '$1 == "ref:" && $3 == "HEAD" { print $2; exit }')
+selected_sha=$(printf '%s\n' "$remote_head" |
+  awk '$2 == "HEAD" { print $1; exit }')
 [[ "$head_ref" == refs/heads/* ]] || exit 4
+[[ "$selected_sha" =~ ^([0-9a-f]{40}|[0-9a-f]{64})$ ]] || exit 4
 default_branch=${head_ref#refs/heads/}
 git check-ref-format "refs/heads/$default_branch" >/dev/null || exit 4
 
@@ -133,7 +138,9 @@ suffix=${wt_parent##*.}
 # SECURITY-REVIEW: clone reads the validated remote into temporary storage without mutating the source repository.
 git clone --quiet --bare --single-branch --branch "$default_branch" -- \
   "$remote_url" "$repo_store" || exit 4
-base_commit=$(git -C "$repo_store" rev-parse "refs/heads/$default_branch") || exit 4
+cloned_sha=$(git -C "$repo_store" rev-parse "refs/heads/$default_branch") || exit 4
+[[ "$cloned_sha" == "$selected_sha" ]] || exit 4
+base_commit=$selected_sha
 branch="docs-loop/${base_commit:0:12}-${suffix}"
 git -C "$repo_store" worktree add -b "$branch" "$wt" "$base_commit" || exit 5
 ```
@@ -252,7 +259,7 @@ fi
 
 # SECURITY-REVIEW: gitleaks scans the isolated worktree's staged content; any scanner error or finding aborts.
 if command -v gitleaks >/dev/null 2>&1; then
-  (cd "$wt" && gitleaks git --staged --redact --no-banner) || exit 21
+  (cd "$wt" && gitleaks git --pre-commit --staged --redact --no-banner) || exit 21
   if [[ "$mode" == OPEN-PRS ]]; then
     gitleaks dir --redact --no-banner "$metadata_dir" || exit 21
   fi
@@ -287,7 +294,9 @@ Only OPEN-PRS may commit, push, or create PRs. Create non-sensitive `commit_mess
 `body_file` inputs with distinct basenames before the secret gate. Push the collision-safe branch without
 force and target the queried `default_branch`. Bind the service repository identity to the same validated
 remote URL used for the temporary clone. Capture the created PR identifier and watch required checks tied
-to it:
+to it. Before entering delivery, run `git -C "$wt" diff --cached --quiet`: exit `0` records
+`DONE (no supported documentation changes)` and skips the entire commit/push/PR block, exit `1` proceeds,
+and any other exit is `BLOCKED`:
 
 ```bash
 # SECURITY-REVIEW: Commit only the already-scanned staged documentation and allow effective hooks to run.

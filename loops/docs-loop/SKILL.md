@@ -50,11 +50,13 @@ Authorization is exact:
   directory. DRY-RUN may read existing state but must not create or update it.
 - APPLY and OPEN-PRS copy the three templates into an absent state directory, fill all run metadata, and
   preserve existing terminal statuses only when state format, canonical scope, and mode exactly match.
-  Canonicalize the state directory; reject it or any state file if symlinked, non-regular, or outside that
-  directory. Create state files with exclusive, no-follow semantics and restrictive permissions. If only
-  some required files exist, or identity/mode/scope mismatches, preserve them and use a new state directory
-  rather than promoting APPLY state to OPEN-PRS implicitly. State files are operational records, not
-  repository documentation, and must not contain copied instruction text, credentials, or sensitive content.
+  Canonicalize the state directory and acquire an exclusive OS lock or lease before reading it; reject a
+  concurrent live owner. While holding the lock, reject the directory or any state file if symlinked,
+  non-regular, or outside that directory. Create state files with exclusive, no-follow semantics and
+  restrictive permissions. If only some required files exist, or identity/mode/scope mismatches, preserve
+  them and use a new state directory rather than promoting APPLY state to OPEN-PRS implicitly. State files
+  are operational records, not repository documentation, and must not contain copied instruction text,
+  credentials, or sensitive content.
 
 If [oh-my-claudecode](https://github.com/Yeachan-Heo/oh-my-claudecode) is available, its persistence mode
 may drive the frozen list and must be cancelled on exit. Without OMC, progress is manually resumable from
@@ -128,8 +130,9 @@ product intent.
   paths in the isolated worktree so the required staged-content scanners can inspect them. Do not commit;
   the preserved staged worktree is the deliverable.
 - **OPEN-PRS:** perform APPLY, then stage only the exact changed documentation paths. Run the secret gates,
-  commit normally with repository hooks enabled, push the named branch without force, and open one PR per
-  repository against the queried default branch.
+  If the staged diff is empty, record `DONE (no supported documentation changes)` and skip commit, push,
+  and PR creation. Otherwise commit normally with repository hooks enabled, push the named branch without
+  force, and open one PR per repository against the queried default branch.
 
 Never edit source code to make documentation true. Never stage with `git add -A` or `git add .`. Do not
 disable hooks, use `--no-verify`, force-push, write directly to the default branch, or alter legitimate

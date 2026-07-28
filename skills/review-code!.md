@@ -76,7 +76,8 @@ After all auditors report:
 1. Deduplicate (same issue from different angles counts once, highest severity).
 2. Cap total findings at 20. If more, keep only HIGH+ severity.
 3. Compute per-dimension scores (10 = no issues found, 1 = critical problems).
-4. Produce Top 5 Actions ranked by severity, blast radius, and fix effort.
+4. Produce Top 5 Actions sorted by severity descending (critical → low), then blast radius descending,
+   then fix effort ascending; break any remaining tie by `file:line`.
 
 ## Rules
 
