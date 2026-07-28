@@ -24,7 +24,7 @@ Each researcher gets: the topic/question, relevant context, and their specific a
 
 ## Output
 
-```
+```text
 ## Research: [topic]
 
 ### Key Findings

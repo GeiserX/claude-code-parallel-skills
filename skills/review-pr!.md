@@ -18,10 +18,11 @@ Each reviewer outputs findings as: SEVERITY (critical/high/medium/low/nit) + fil
 4. **Simplicity Advocate** (oh-my-claudecode:critic) — YAGNI violations, premature abstractions, dead code, unnecessary indirection. "Can this be simpler?"
 5. **Test Assessor** (oh-my-claudecode:test-engineer) — Test adequacy, coverage, flakiness, missing edge cases. "If someone breaks this tomorrow, will tests catch it?"
 6. **Concurrency & Perf** (oh-my-claudecode:scientist) — Race conditions, resource leaks, N+1, unbounded allocations. Reports "N/A" if PR has no concurrency/perf surface.
+7. **Data Integrity** (oh-my-claudecode:code-reviewer) — Persistence, migrations, transactional boundaries, schema compatibility, and recovery. Reports "N/A" when the PR has no stateful data surface.
 
 ## Output
 
-```
+```text
 ## PR Review: [title]
 
 ### Verdict: [APPROVE | REQUEST CHANGES | NEEDS DISCUSSION]
@@ -44,12 +45,11 @@ Each reviewer outputs findings as: SEVERITY (critical/high/medium/low/nit) + fil
 
 ## Scaling
 
-The 6 reviewers above are the MINIMUM baseline. For large or cross-cutting PRs, spawn additional specialists:
+The 7 reviewers above are the MINIMUM baseline. For large or cross-cutting PRs, spawn additional specialists:
 - **API Designer** (oh-my-claudecode:critic) — interface ergonomics, backwards compatibility, naming
 - **Domain Expert** (oh-my-claudecode:scientist) — business logic correctness for the affected domain
 - **DevOps/Infra** (oh-my-claudecode:scientist) — deployment impact, config changes, CI implications
 - **Accessibility/UX** (oh-my-claudecode:scientist) — if frontend/UI changes exist
-- **Data Integrity** (oh-my-claudecode:scientist) — migrations, schema changes, data consistency
 - **Error Handling** (oh-my-claudecode:code-reviewer) — failure paths, recovery, observability
 
 Scale to 10-12+ reviewers for large PRs touching multiple modules, or PRs with both frontend + backend + infra changes. More eyes = fewer missed issues. Don't hold back.
