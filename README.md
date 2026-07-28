@@ -1,11 +1,14 @@
 # Claude Code Parallel Skills
 
-Slash-command skills for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) in two families:
+Reusable workflows for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) in two families:
 
 1. **Parallel commands** — spawn many specialized agents *at once* to review, research, investigate, and implement faster and more thoroughly.
-2. **Autonomous loops** — keep working hands-off toward a goal, resuming across sessions and stopping cleanly, built on top of those parallel commands.
+2. **Durable loops** — preserve progress outside model context, resume across sessions, and stop on explicit evidence.
 
-They lean on [oh-my-claudecode](https://github.com/anthropics/oh-my-claudecode) (OMC) agent types and skills, but the parallel commands degrade gracefully to any Claude Code setup with the Agent tool.
+The parallel commands work with Claude Code's Agent tool and can use
+[oh-my-claudecode](https://github.com/Yeachan-Heo/oh-my-claudecode) (OMC) specialists when available.
+The loops require OMC only for unattended continuation; without it, their saved state remains manually
+resumable.
 
 ---
 
@@ -14,47 +17,84 @@ They lean on [oh-my-claudecode](https://github.com/anthropics/oh-my-claudecode) 
 One-shot commands that fan out specialized agents in parallel, then synthesize.
 
 ### `/investigate!`
+
 Root-cause analysis and fix. Spawns 7+ agents (tracer, scientist, architect, security reviewer, critic, test engineer, debugger) to investigate an issue simultaneously, synthesizes findings, then implements a fix with a reproduction test.
 
 ### `/review-pr!`
-Multi-perspective PR review. Spawns 7+ simultaneous reviewers (logic, architecture, security, simplicity, tests, performance), then synthesizes into a severity-ranked verdict with a clear APPROVE / REQUEST CHANGES / NEEDS DISCUSSION outcome.
+
+Multi-perspective PR review. Spawns 7+ simultaneous reviewers (logic, architecture, security, simplicity,
+tests, performance, data integrity), then synthesizes into a severity-ranked verdict with a clear
+APPROVE / REQUEST CHANGES / NEEDS DISCUSSION outcome.
 
 ### `/review-code!`
+
 Whole-codebase health audit. Spawns 7+ auditors (architecture, security, complexity, dead code, error handling, test health, consistency) that examine the entire repo through orthogonal lenses, then synthesizes into a scored health report with prioritized actions.
 
 ### `/research!`
+
 Deep parallel research on any topic. Spawns 7+ researchers (docs specialist, codebase explorer, git historian, comparativist, architect, critic, performance analyst) that attack the question from different angles, then synthesizes into actionable findings with options and trade-offs.
 
 ### `/implement!`
+
 Parallel feature implementation. Decomposes work into independent streams, scaffolds contracts/interfaces first, then dispatches N executor agents working on non-overlapping files simultaneously. Finishes with parallel verification (code review + tests + architecture check).
 
-### `/rabbit`
-CodeRabbit wait-and-fix loop. Waits for [CodeRabbit](https://coderabbit.ai) to finish reviewing the current PR, addresses every issue it raised (fix → push → wait for re-review), and repeats until CodeRabbit approves with no remaining issues — then merges and cuts a release (semver), deploying if the repo has a deploy path. Turns "babysit the review bot" into one command.
+---
+
+## Review automation
+
+### `/coderabbit-loop`
+
+A bounded [CodeRabbit](https://coderabbit.ai) review-and-fix loop. It verifies each finding against the
+current code, applies only valid minimal fixes, runs repository checks, pushes normally, and waits for a
+review tied to the new head SHA. It stops at `READY` by default. Merge, release, and deployment are separate
+explicit options with their own safety gates.
 
 ---
 
 ## Autonomous loops
 
-Where the commands above are one-shots, the **loops** keep going. Each one is an autonomous, **resumable**, file-state-backed driver: it writes its goal and progress to files in `docs/` so it survives context loss and compaction, keeps iterating hands-off ("the boulder never stops"), and **stops cleanly** the moment the goal holds or further work stops paying off. They orchestrate the parallel commands above inside an OMC persistent mode (`ralph` / `autopilot`), and always tear that state down (`cancel`) on exit.
+Where the commands above are one-shots, the loops keep durable state in configurable operational
+directories. Each loop defines its own terminal outcomes, records real verification evidence, preserves
+pre-existing work, and tears down OMC persistence on exit. They use tools and subagents directly rather
+than trying to invoke other slash commands.
 
-Install these as **skills** (directories under `~/.claude/skills/`), not flat commands — each ships with its own `templates/` and `references/`.
+Install these as **skills** (directories under `~/.claude/skills/`), not flat commands. Each includes its
+own templates and may include supporting references.
 
-### `/sergio-loop` — drive one repo to a goal
-The single entry point for "go work on this until it's done." You give it a directive; it saves that **verbatim** to `docs/GOAL.md` (so the work is remembered), engages OMC persistent mode, then runs the core cycle **`/research! → /implement! → /review-pr!`** on repeat until the goal holds — logging evidence to `docs/AUTOPILOT-WORKLOG.md` and parking genuine human-only decisions in `docs/DEFERRED-QUESTIONS.md` instead of stopping to ask. Add `coordinate` to let two sessions work the same repo through a shared `docs/COORDINATE.md` board without clobbering each other. Optionally point it at a **knowledge base** (a decisions doc, wiki, or your own research command) so it resolves "what do we intend here?" before deferring.
+### `/goal-loop` — drive a repository toward an explicit goal
 
-*Use when:* you have a repo and a goal and want it driven hands-off. `/sergio-loop <your directive>`
+Saves the user's goal verbatim, then runs an inspect/plan → implement → verify → fresh-review cycle over
+the smallest unfinished slice. State defaults to `.goal-loop/`; iteration, no-progress, and failure limits
+prevent runaway work. Routine reversible edits can proceed, while merge, release, deployment, production
+mutation, destructive history changes, and unrequested external effects require clear authorization.
+
+*Use when:* a repository should make sustained, evidence-backed progress toward a concrete outcome.
+`/goal-loop <goal>`
 
 ### `/refine-loop` — polish a finished app until it stops paying off
-The loop you run **after** a thing works. Not features, not diff-review — it takes a functionally-done app and makes it **genuinely usable, thoughtful, robust, and well-architected**, one behavior-preserving, externally-verified improvement at a time. It audits four lenses (architecture & code health, usability & thoughtfulness, production-readiness & operations, refactoring discipline), scores each candidate by `Impact × Confidence ÷ Effort` against a threshold **θ** (correctness/security must-fixes bypass the gate), executes the best with rollback-on-regression, records ADRs, and **halts on diminishing returns** — reporting "diminishing returns at θ; lower θ to go deeper." Never a big-bang rewrite. Writes `docs/REFINE-GOAL.md` + `docs/REFINE-BACKLOG.md` + `docs/REFINE-WORKLOG.md`.
 
-*Use when:* "make it production-grade", "make it really usable", "polish/harden this". `/refine-loop [theta=N] <app + focus>`
+Audits a working repository through architecture, usability, production-readiness, and refactoring lenses.
+It ranks behavior-preserving candidates by `Impact × Confidence ÷ Effort`, applies one small change at a
+time, verifies independently, and stops after three evidence-based plateau rounds or a safety limit.
+Correctness, security, privacy, and data-loss findings become explicit `NEEDS-FIX` handoffs rather than
+being silently mixed into refinement. State defaults to `.refine-loop/`.
+
+*Use when:* existing behavior works and should be improved without changing its contract.
+`/refine-loop [--target=PATH] [theta=N] [focus=LENS,...] <intent>`
 
 ### `/docs-loop` — bring many repos' docs in sync with the code
-A repo-after-repo documentation sweep. Given a scope (repo names, a workspace phrase, or a path), it walks each repo in turn and fixes only the doc claims the **current code contradicts** — stale ports, flags, env vars, paths, endpoints, renamed symbols, dead links, broken Mermaid, missing coverage — making surgical, verified edits and opening **one PR per repo**. It is built to be safe first: every claim is checked against a `file:line` code anchor, it works in a throwaway `origin/main` worktree (never your dirty checkout), hand-authored prose / ADRs / `CLAUDE.md` / secrets are off-limits, and it never auto-merges. State lives in a central ledger so it resumes rather than restarts, and it halts on scope-covered or diminishing returns. It would rather leave a doc alone than invent a word.
 
-*Use when:* "sync the docs with the code across my repos." `/docs-loop [theta=N] <scope>`
+Audits a finite set of repositories against each repository's queried default branch. Dry-run is the
+default: it reports affirmative contradictions and defers uncertain claims without editing. `--apply`
+authorizes isolated local documentation fixes; adding `--open-prs` authorizes normal commits, pushes, and
+one reviewable PR per repository. It never merges and never treats a missing search result as proof.
 
-> **The loops need OMC.** They call OMC's `ralph` / `autopilot` / `cancel` for hands-off persistence and the `/research!` `/implement!` `/review-pr!` commands from this repo. On a plain Claude Code setup without OMC you'd need to supply an equivalent persistence mechanism (a Stop hook + a small state flag); the loop logic and file-state design still apply.
+*Use when:* documentation needs an evidence-backed drift report or surgical updates.
+`/docs-loop [--apply [--open-prs]] [--root=PATH | REPO_PATH ...]`
+
+> **Autonomy versus resumption:** OMC provides unattended continuation. Without OMC, each loop performs
+> the current authorized pass and reports the exact manual resume action. Mutating modes persist state;
+> `docs-loop` dry-run remains read-only and emits a non-resumable report.
 
 ---
 
@@ -73,25 +113,27 @@ mkdir -p .claude/commands && cp skills/*.md .claude/commands/
 
 ```bash
 mkdir -p ~/.claude/skills
-cp -R loops/sergio-loop loops/refine-loop loops/docs-loop ~/.claude/skills/
+cp -R loops/goal-loop loops/refine-loop loops/docs-loop ~/.claude/skills/
 ```
 
 ## Usage
 
-```
+```text
 /investigate! Users getting 500 errors on /api/checkout
 /review-pr!
 /review-code!
 /research! How does connection pooling work in our app?
 /implement! Add webhook retry with exponential backoff
-/rabbit
+/coderabbit-loop
 
-/sergio-loop Ship OAuth device-flow login and get CI green
-/refine-loop theta=1.5 make the CLI genuinely pleasant to use
-/docs-loop all active repos
+/goal-loop Ship OAuth device-flow login and get CI green
+/refine-loop --target=. theta=1.5 focus=usability make the CLI genuinely pleasant to use
+/docs-loop --root=~/src
+/docs-loop --apply --open-prs ~/src/project-a ~/src/project-b
 ```
 
-Each command accepts `$ARGUMENTS` — pass your topic, issue, feature, or directive right after it. The loops write their state into `docs/` in the target repo (and a central ledger, for `docs-loop`).
+Each command accepts `$ARGUMENTS`. Mutating and outward-facing loop options are intentionally explicit;
+read each loop's authorization section before invocation.
 
 ## Design Philosophy
 
@@ -103,7 +145,9 @@ These skills exploit three well-documented principles:
 
 **Communication overhead must be designed out, not managed.** Communication scales O(n²) with team size (Brooks, "The Mythical Man-Month"). The countermeasure: define interfaces before parallelizing so agents share contracts, not conversations. Interface-first decomposition yields 3-5x throughput gains in teams >4 (Forsgren et al., "Accelerate", 2018).
 
-The **loops** add a fourth: **durable state beats memory.** A loop's goal, progress, and stop-signal live in files (`GOAL.md`, a worklog, a scored backlog, a ledger) — never in the model's context — so the work survives compaction, resumes instead of restarting, and stops on evidence rather than a feeling.
+The **loops** add a fourth: **durable state beats memory.** Goals, progress, counters, and stop signals live
+in operational state files rather than only in model context, so work can resume instead of restarting and
+stop on recorded evidence rather than a feeling.
 
 <details>
 <summary>Full references</summary>
@@ -130,20 +174,27 @@ The **loops** add a fourth: **durable state beats memory.** A loop's goal, progr
 ## Design Principles
 
 - **Parallel by default** — all agents launch simultaneously, no sequential bottlenecks
-- **Minimum floors, not ceilings** — each skill defines a minimum agent count (7) but scales up for larger tasks (10-15+)
+- **Minimum floors, not ceilings** — non-trivial parallel commands define a baseline panel and scale up for
+  larger tasks; their documented small-change and non-applicable-lens rules may scale down
 - **Orthogonal lenses** — no two agents can produce the same finding; each owns one concern
 - **Contracts before code** — `implement!` scaffolds interfaces first so parallel agents don't conflict
 - **Evidence over opinion** — agents report confidence levels and cite sources/files/lines
 - **Synthesize, don't aggregate** — cross-reference findings, flag contradictions, deduplicate
-- **State in files, not heads** *(loops)* — goal/progress/stop-signal are durable and resumable
+- **State in files, not heads** *(loops)* — goals, progress, and stop signals are durable and resumable
 - **Stop cleanly** *(loops)* — halt on goal-met or diminishing returns; always tear down persistence
 
 ## Requirements
 
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) CLI
-- [oh-my-claudecode](https://github.com/anthropics/oh-my-claudecode) — for the specialized agent types (`tracer`, `architect`, `security-reviewer`, …) and, for the loops, the `ralph` / `autopilot` / `cancel` persistence skills.
+- Git
+- [GitHub CLI](https://cli.github.com/) with appropriate authentication for `/coderabbit-loop` and
+  `/docs-loop --open-prs`
+- [oh-my-claudecode](https://github.com/Yeachan-Heo/oh-my-claudecode) — optional specialist agents for the
+  parallel commands and required only for unattended loop continuation
 
-Without OMC, the parallel commands still run via the generic Agent tool (results may vary); the loops expect OMC's persistent modes.
+Repository-provided tests and linters remain authoritative. `/docs-loop --open-prs` requires `gitleaks`;
+optional tools such as `lychee` and Mermaid parsers are used when already installed. The loops do not
+silently install tools.
 
 ## License
 
