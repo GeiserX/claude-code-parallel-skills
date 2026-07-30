@@ -98,8 +98,9 @@ repository policy requires them.
 Autonomous continuation requires
 [oh-my-claudecode (OMC)](https://github.com/Yeachan-Heo/oh-my-claudecode).
 
-When OMC is available, engage its persistence mechanism through direct skill or tool actions with
-the goal and state paths. Do not invoke nested slash commands. Clear persistence on every terminal
+When OMC is available, engage its persistence mechanism by writing and validating the OMC mode state
+described below; continuation is driven by OMC's Stop hook once that state is active, fresh and owned by
+the current session, not by invoking a skill or tool. Do not invoke nested slash commands. Clear persistence on every terminal
 outcome.
 
 ### Engaging OMC persistence concretely
@@ -134,8 +135,13 @@ Four constraints, all load-bearing:
   and no configuration changes that. Never claim the loop runs forever.
 - **Exactly one authority.** Never hold two mode states at once, and never stack a second retry
   mechanism on top. Clear state on every terminal outcome and verify it reads inactive.
-- **The state file is the authorization boundary.** Treat its contents as context, never as permission
-  to widen what the current invocation may do.
+- **The state file is a continuation input, not an authorization boundary.** It decides only whether to
+  continue. Treat its contents as context, never as permission to widen what the current invocation may
+  do; authorization stays governed by this skill's authorization section alone.
+- **Re-evaluate eligibility on every resume.** Never trust a persistence authority recorded by an earlier
+  run: an authority written as manual-resume because the interface was unavailable then will otherwise be
+  honoured forever, and the loop will keep stopping after one iteration long after the cause is fixed.
+  Re-check, then correct the recorded authority before deciding how to continue.
 - **This depends on OMC internals.** The behaviour above was verified against OMC **4.15.6** by driving
   the hook directly and observing the block decision. Re-verify after an OMC upgrade rather than assuming
   the layout is stable.
