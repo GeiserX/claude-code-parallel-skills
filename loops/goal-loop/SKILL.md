@@ -16,6 +16,50 @@ Autonomous continuation requires
 mechanism. Without OMC, complete the current iteration, save state, and report that the loop is
 manually resumable. Never describe a non-persistent session as autonomous.
 
+### Engaging OMC persistence concretely
+
+"Engage OMC persistence" is not a skill invocation. OMC's continuation is driven by **state plus its
+Stop hook**: the hook (`scripts/persistent-mode.mjs` in the installed plugin) reads a mode state file
+and, when that state is active, fresh and owned by the current session, returns a block decision that
+re-invokes this workflow. Nothing checks whether the mode's *skill* was ever called.
+
+That distinction matters in practice: continuation still works when the mode's skill is missing from the
+session's skill registry, which is the most common reason "persistence was engaged" appears to do
+nothing. Verify with `status` rather than trusting a claim that it started.
+
+Write state to `<REPOSITORY_ROOT>/.omc/state/sessions/<SESSION_ID>/<mode>-state.json` with:
+
+| field | requirement |
+| --- | --- |
+| `active` | `true` |
+| `iteration` / `max_iterations` | continuation blocks only while `iteration < max_iterations` |
+| `prompt` | the continuation instruction echoed back to the next turn |
+| `project_path` | canonical repository root; state for another repository is ignored |
+| `last_checked_at` | fresh ISO-8601. State older than **two hours** is treated as inactive |
+| `session_id` | must equal the current session, or continuation is skipped |
+
+A **flat** `.omc/state/<mode>-state.json` is silently ignored — the path must be session-scoped. This
+fails quietly, with no error, and is the second most common cause of a loop that never continues.
+
+Four constraints, all load-bearing:
+
+- **The runtime overrides Stop hooks after eight consecutive blocks**, so set `max_iterations` to
+  `min(planned iterations, 8)`. This removes one-stop churn; it does not provide unbounded continuation,
+  and no configuration changes that. Never claim the loop runs forever.
+- **Exactly one authority.** Never hold two mode states at once, and never stack a second retry
+  mechanism on top. Clear state on every terminal outcome and verify it reads inactive.
+- **The state file is the authorization boundary.** Treat its contents as context, never as permission
+  to widen what the current invocation may do.
+- **This depends on OMC internals.** The behaviour above was verified against OMC **4.15.6** by driving
+  the hook directly and observing the block decision. Re-verify after an OMC upgrade rather than assuming
+  the layout is stable.
+
+Supported modes in 4.15.6 are `ralph`, `ultragoal`, `autopilot`, `ultrapilot`, `swarm`, `ultrawork`,
+`ultraqa`, `pipeline`, `team`. Only the `ralph` slot was verified end to end here; `ultragoal` carries
+extra terminal conditions (it also consults `.omc/ultragoal/goals.json`) and was not tested, so do not
+assume it behaves identically.
+
+
 ## 1. Parse the invocation
 
 Recognize options only while they are leading, whitespace-delimited tokens:
