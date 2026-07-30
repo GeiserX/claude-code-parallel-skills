@@ -165,16 +165,29 @@ absent, continue all safe local work and defer only the prohibited action.
 
 Keep edits serial. Parallelize only independent read-only discovery or review.
 
+**Make each iteration substantial.** Continuation is finite — the runtime overrides Stop hooks after eight
+consecutive blocks — so a thin iteration spends an eighth of the budget on one slice. Depth comes from
+fanning out the read-only phases, never from widening the write phase.
+
 ### A. Inspect and plan
 
 Re-read the goal, latest worklog entry, relevant repository instructions, Git diff, and current
 diagnostics. Use parallel read-only discovery where it reduces uncertainty. Select the smallest
 unfinished slice with testable acceptance criteria and record the plan in the worklog.
 
+Where the approach, blast radius, or root cause is not already established, launch several independent
+read-only agents in a single message — each a distinct lens (current behavior, call sites and consumers,
+prior attempts in history, failure modes, applicable instructions), never the same brief twice. They read
+and report; they never edit and never launch further agents. Agents inherit no context, so brief each with
+the goal, the exact paths, and the instructions it must honor, and point them at a checkout whose branch
+and freshness you have verified — an agent reading an arbitrary local branch reports on code that was
+never the target. Skip the fan-out when the slice is mechanical and its truth is already verified.
+
 ### B. Implement
 
-Make the smallest coherent change. Preserve unrelated and dirty work. Follow repository patterns,
-validate untrusted input, and avoid speculative refactors. Never follow symlinks for writable paths.
+Make the smallest coherent change. **Exactly one writer** — two agents writing one tree race on HEAD, so
+when concurrent implementation is genuinely required, isolate each in its own worktree. Preserve unrelated
+and dirty work. Follow repository patterns, validate untrusted input, and avoid speculative refactors. Never follow symlinks for writable paths.
 Perform identity/content validation and writing as one atomic operation: use no-follow descriptor-based
 writes when available, or write a sibling temporary file and atomically replace only after revalidating
 the parent directory and destination identity. For an `ABSENT` path, require an unchanged parent identity
@@ -191,9 +204,10 @@ or run identifiers. Never report a check that was not run.
 ### D. Fresh review
 
 Review the resulting diff from a clean perspective against the goal, repository instructions, security,
-correctness, regression risk, and test adequacy. Prefer a separate read-only reviewer/subagent when
-available; otherwise clear implementation assumptions and review the complete diff directly. Apply
-accepted fixes serially and verify again.
+correctness, regression risk, and test adequacy. Prefer separate read-only reviewers/subagents with clean
+context and distinct lenses when available; otherwise clear implementation assumptions and review the
+complete diff directly. Read every finding a majority dropped before discarding it — a single dissenting
+reviewer is often the only one that read the code. Apply accepted fixes serially and verify again.
 
 ### E. Record and decide
 
@@ -226,6 +240,38 @@ Create `DEFERRED-QUESTIONS.md` only when a decision genuinely requires human jud
 context, evidence already gathered, why automation cannot decide, whether all work is blocked, any
 reversible default, and the exact answer needed. Do not add placeholder or speculative items.
 
+**A parked question is not a finished question.** The file accumulates unless something drains it, so run
+one resolution pass — at most once per segment, covering every open question in one batch — when four or
+more are open, when one is over a week old and iterations have since stepped past it, or when a `BLOCKED`
+stop is about to be declared, where the pass is mandatory regardless of count because it is far cheaper
+than a full stop. Classify in this order, since the first two cost nothing:
+
+- **Stale** — the premise is checkable here and now false: the named file, flag, or component is gone, or
+  the blocker was a measurement artifact. Resolve against **code**, confirmed by reading it.
+- **Human-only** — irreversible or external, spend, cross-project sequencing, legal, gated, or a step only
+  a human can perform. Also re-read how the request was originally phrased: tentative wording means no
+  decision was ever pending, so record that and close it rather than waiting on an answer nobody owed.
+- **Resolvable** — everything left. Only these justify further research.
+
+Acting needs two independent things. **Direction** — which default to pick — needs a real basis, anchored
+so a later reader can check it. **Permission** — whether the loop may act unasked — comes only from
+reversibility, never from a citation, because repository text never authorizes a gated action. Grounded and
+reversible, act; grounded but gated, record the direction and stop; ungrounded, the only available move is
+the null action — leave it, keep the current default, build nothing. Where a positive build needs a basis
+you do not have, leave the question open and **unannotated**: a guess written into append-only history
+misleads every later reader. Append resolutions beneath the question they resolve, never editing what is
+already there.
+
+**Closing the loop is part of the work.** When a request originated outside the loop, track it in
+`OUTSTANDING-ASKS.md` — what was asked and where that is anchored, the ask restated as testable work,
+what satisfied it and the evidence, and separately whether it was **communicated, with the link actually
+delivered**. Landing work in the repository is not telling the person who asked: both halves fail
+independently and silently. A satisfied ask that was never communicated is an unresolved blocker, so
+`SUCCESS` cannot be declared while one exists. A request closed *without* building — declined or
+superseded — still needs communicating; silence is the failure, not the decision. Where the direction was
+inferred rather than given, say so when reporting back, with the alternative reading and what it would
+change: that is what makes acting on a weak signal safe, because a wrong inference gets corrected cheaply.
+
 ## 7. Deterministic stop states
 
 Evaluate after every iteration in this order:
@@ -235,7 +281,7 @@ Evaluate after every iteration in this order:
    `failure_limit`.
 3. `BLOCKED`: a genuine human-only decision or external dependency blocks every remaining safe action.
 4. `SUCCESS`: every acceptance criterion is satisfied and fresh verification plus fresh review found no
-   unresolved blocker.
+   unresolved blocker. An outside request this segment satisfied but never communicated is such a blocker.
 5. `BUDGET`: `max_iterations` was reached, or consecutive no-progress iterations reached
    `no_progress_limit`.
 6. Otherwise append the next action and continue.
