@@ -2,7 +2,6 @@
 name: goal-loop
 description: Runs a durable inspect/plan, implement, verify, and fresh-review loop toward an explicit repository goal. Preserves manually resumable state and uses oh-my-claudecode for autonomous continuation. Use only when the user explicitly invokes goal-loop.
 argument-hint: "[--continue] [--state-dir=PATH] [--max-iterations=N] [--no-progress-limit=N] [--failure-limit=N] <goal>"
-disable-model-invocation: true
 ---
 
 # goal-loop
