@@ -280,11 +280,23 @@ Evaluate after every iteration in this order:
 2. `ERROR`: an unrecoverable internal/tool/state error occurred, or consecutive failed attempts reached
    `failure_limit`.
 3. `BLOCKED`: a genuine human-only decision or external dependency blocks every remaining safe action.
+   Before declaring it, say which it is: genuinely impossible, or merely hard. Almost everything called
+   blocked is hard — unresolved authentication, a missing environment, an unread source — and hard is
+   yours to solve rather than to report. Only a fundamental limit or a decision that is actually the
+   user's qualifies. When one does, state in plain terms what you need and what each answer unblocks; a
+   blocker the reader cannot act on is not yet reported.
 4. `SUCCESS`: every acceptance criterion is satisfied and fresh verification plus fresh review found no
    unresolved blocker. An outside request this segment satisfied but never communicated is such a blocker.
 5. `BUDGET`: `max_iterations` was reached, or consecutive no-progress iterations reached
    `no_progress_limit`.
 6. Otherwise append the next action and continue.
+
+`SUCCESS` ends this goal, not the useful work. Reaching it means the acceptance criteria hold — not that
+the repository is in good shape. Record as the next action a refinement pass at a threshold that admits
+more than the obvious, and step it down on each subsequent pass. A high threshold silently protects real
+defects: the cheap-looking findings a strict threshold rejects are where the serious ones hide, so a pass
+that finds nothing at a low threshold is evidence, while one that finds nothing at a high threshold is
+mostly evidence about the threshold.
 
 These states are mutually exclusive because the first matching condition wins. Before any stop:
 
