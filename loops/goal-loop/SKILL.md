@@ -247,3 +247,28 @@ These states are mutually exclusive because the first matching condition wins. B
 If OMC is active and no stop condition matches, allow its persistence mechanism to continue with the
 recorded next action. Without OMC, stop after the iteration as a manually resumable run; this is not one
 of the terminal states above unless a terminal condition actually matched.
+
+## Arming the persistence hook — the failures that cost whole sessions
+
+**Arm the slot the hook actually reads.** The hook picks its slot from the Stop payload's `cwd`, ascending
+to the **nearest** `.git`, and keys it by `sha256(git-toplevel-path)`. A workspace directory that is itself
+a git repo, with repos nested inside it, therefore has two slots — arming the outer one means the hook never
+opens the file you armed. Always pass `--repo "$(git -C "$PWD" rev-parse --show-toplevel)"`, never a
+hand-typed path.
+
+**Three things that look like evidence and are not.**
+- `iteration` stuck at 0 proves nothing until you confirm you are reading the same slot the hook reads.
+- A log of pure decline rows is not evidence that nothing ever granted: the tracer runs only on allow paths,
+  so grants leave no trace by construction.
+- A missing state file for the key declines *before* the active/session/iteration checks — that is what a
+  wrong slot looks like from outside.
+
+**The session id is recorded, never guessed.** The hook writes the payload's own session id next to the cwd
+in its debug log. Read the last row matching your cwd. An environment variable, the newest transcript and
+the newest temp directory have all been wrong while the recorded value was right.
+
+**One slot per git root, single-owner.** If several live sessions share a root, only the last to arm
+continues and the rest decline silently. Give each its own checkout — a distinct path is a distinct key.
+
+**Read the decline logic before explaining a decline.** Inferring from outside produced three confident
+wrong answers in a row; reading the function took one command and eliminated them all.
