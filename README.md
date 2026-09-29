@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/GeiserX/claude-code-parallel-skills/main/docs/images/banner.svg" alt="claude-code-parallel-skills" width="100%">
+  <img src="docs/images/banner.svg" alt="claude-code-parallel-skills" width="100%">
 </p>
 
 # Claude Code Parallel Skills
