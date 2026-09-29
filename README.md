@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/GeiserX/claude-code-parallel-skills/main/docs/images/banner.svg" alt="claude-code-parallel-skills" width="100%">
+</p>
+
 # Claude Code Parallel Skills
 
 Reusable workflows for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) in two families:
